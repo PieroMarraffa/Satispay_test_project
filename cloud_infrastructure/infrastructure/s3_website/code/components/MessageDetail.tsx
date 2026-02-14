@@ -54,7 +54,7 @@ const MessageDetail: React.FC<MessageDetailProps> = ({ id, onBack }) => {
                 {message.title}
               </h1>
               <span className="px-4 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase bg-slate-100 text-slate-600">
-                REF: {message.id.slice(0, 12)}
+                REF: {message.id?.slice(0, 12) ?? message.id ?? '—'}
               </span>
             </div>
           </header>

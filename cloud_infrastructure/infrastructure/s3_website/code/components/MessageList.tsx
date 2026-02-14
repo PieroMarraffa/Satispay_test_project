@@ -15,9 +15,14 @@ const MessageList: React.FC<MessageListProps> = ({ onSelectMessage, onRefreshTri
   useEffect(() => {
     const fetchMessages = async () => {
       setIsLoading(true);
-      const data = await apiService.getMessages();
-      setMessages(data);
-      setIsLoading(false);
+      try {
+        const data = await apiService.getMessages();
+        setMessages(Array.isArray(data) ? data : []);
+      } catch {
+        setMessages([]);
+      } finally {
+        setIsLoading(false);
+      }
     };
     fetchMessages();
   }, [onRefreshTrigger]);
@@ -69,7 +74,7 @@ const MessageList: React.FC<MessageListProps> = ({ onSelectMessage, onRefreshTri
                 </div>
                 <div>
                   <h3 className="text-md font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">{msg.title}</h3>
-                  <p className="text-xs text-slate-400 font-mono mt-0.5">ID: {msg.id.slice(0, 8)}...</p>
+                  <p className="text-xs text-slate-400 font-mono mt-0.5">ID: {msg.id?.slice(0, 8) ?? msg.id ?? '—'}...</p>
                 </div>
               </div>
               <div className="text-slate-300 group-hover:text-indigo-400 transition-colors">
