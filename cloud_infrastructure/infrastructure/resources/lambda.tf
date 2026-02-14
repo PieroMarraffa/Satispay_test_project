@@ -6,7 +6,7 @@ locals {
       function_name       = "API_writer"
       role_arn           = module.lambda_writer_iam.role_arn
       environment_variables = {
-          DDB_TABLE_NAME = aws_dynamodb_table.messages_table.name
+          DDB_TABLE = aws_dynamodb_table.messages_table.name
       }
     }
     API_reader = {
@@ -15,7 +15,7 @@ locals {
       function_name       = "API_reader"
       role_arn           = module.lambda_reader_iam.role_arn
       environment_variables = {
-          DDB_TABLE_NAME = aws_dynamodb_table.messages_table.name
+          DDB_TABLE = aws_dynamodb_table.messages_table.name
       }
     }
   }

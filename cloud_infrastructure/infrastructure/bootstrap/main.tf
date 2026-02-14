@@ -2,7 +2,7 @@ resource "aws_s3_bucket" "terraform_state_bucket" {
   bucket = "test-marraffa-terraform-state-bucket"
 
   tags = {
-    Name        = "My Terraform State Bucket for Satispay's Project"
+    Name        = "My Terraform State Bucket for Satispay Project"
     Environment = var.environment
   }
 }

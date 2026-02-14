@@ -3,7 +3,7 @@ resource "aws_apigatewayv2_integration" "integration" {
   integration_type      = "AWS_PROXY"
   integration_uri       = var.lambda_integration.lambda_arn
 
-  integration_method    = var.lambda_integration.method
+  integration_method    = "POST"
 
   payload_format_version = "2.0"
   timeout_milliseconds   = 30000
@@ -25,5 +25,5 @@ resource "aws_lambda_permission" "lambda_permission" {
   function_name = var.lambda_integration.lambda_name
   principal     = "apigateway.amazonaws.com"
 
-  source_arn = "${var.api_gateway_execution_arn}/${upper(var.lambda_integration.method)}/${each.value.path}${each.value.by_id ? "/*" : ""}"
+  source_arn = "${var.api_gateway_execution_arn}/*/${upper(var.lambda_integration.method)}/${each.value.path}${each.value.by_id ? "/*" : ""}"
 }

@@ -13,9 +13,8 @@ resource "aws_s3_bucket_website_configuration" "site" {
 resource "aws_s3_bucket_public_access_block" "site" {
   bucket = aws_s3_bucket.site.id
 
-  # Necessario per permettere policy pubblica
-  block_public_acls       = true
-  ignore_public_acls      = true
+  block_public_acls       = false
+  ignore_public_acls      = false
   block_public_policy     = false
   restrict_public_buckets = false
 }
@@ -26,7 +25,7 @@ data "aws_iam_policy_document" "public_read" {
     effect  = "Allow"
 
     principals {
-      type        = "*"
+      type        = "AWS"
       identifiers = ["*"]
     }
 
@@ -39,4 +38,5 @@ data "aws_iam_policy_document" "public_read" {
 resource "aws_s3_bucket_policy" "public_read" {
   bucket = aws_s3_bucket.site.id
   policy = data.aws_iam_policy_document.public_read.json
+  depends_on = [aws_s3_bucket_public_access_block.site]
 }

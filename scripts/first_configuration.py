@@ -16,7 +16,7 @@ def capture(cmd, cwd=None, env=None) -> str:
     return subprocess.check_output(cmd, cwd=cwd, env=env, text=True).strip()
 
 
-def need(cmd_name: str):
+def need(cmd_name: str) -> bool:
     return shutil.which(cmd_name) is not None
 
 
@@ -33,6 +33,14 @@ def ok(msg: str):
     print(f"✅ {msg}")
 
 
+def tf_output(env, cwd: str, name: str) -> str | None:
+    """Return terraform output -raw <name> or None if not found."""
+    try:
+        return capture(["terraform", "output", "-raw", name], cwd=cwd, env=env)
+    except subprocess.CalledProcessError:
+        return None
+
+
 def main():
     script_dir = Path(__file__).resolve().parent
     project_root = script_dir.parent
@@ -45,7 +53,7 @@ def main():
     if not BOOT.exists():
         die(f"Bootstrap dir not found: {BOOT}")
 
-    # Environment
+    # Environment for subprocesses
     env = os.environ.copy()
 
     # Step 1: tool checks
@@ -67,7 +75,7 @@ def main():
 
     aws_profile = questionary.select(
         "Select AWS profile:",
-        choices=profiles
+        choices=profiles,
     ).ask()
 
     if not aws_profile:
@@ -79,7 +87,7 @@ def main():
     # Step 3: Release UI?
     release_ui = questionary.confirm(
         "Release UI site as well?",
-        default=False
+        default=False,
     ).ask()
 
     ok(f"RELEASE_UI={release_ui}")
@@ -87,18 +95,16 @@ def main():
     # Step 4: Region selection
     region = questionary.text(
         "AWS region:",
-        default="eu-central-1"
+        default="eu-central-1",
     ).ask()
-
     if not region:
         die("Region required.")
 
     # Step 5: State key selection
     key = questionary.text(
         "Terraform state key:",
-        default="terraform.tfstate"
+        default="terraform.tfstate",
     ).ask()
-
     if not key:
         die("State key required.")
 
@@ -107,17 +113,36 @@ def main():
     # Step 6: Bootstrap backend
     info("Bootstrapping backend...")
     run(["terraform", "init"], cwd=str(BOOT), env=env)
-    run(["terraform", "apply", "-auto-approve"], cwd=str(BOOT), env=env)
 
-    bucket = capture(["terraform", "output", "-raw", "tf_state_bucket_name"], cwd=str(BOOT), env=env)
+    # Pass vars to avoid interactive prompts if bootstrap expects them
+    boot_vars = [
+        f"region={region}",
+        f"profile={aws_profile}",
+    ]
+    run(
+        ["terraform", "apply", "-auto-approve"] + [f"-var={v}" for v in boot_vars],
+        cwd=str(BOOT),
+        env=env,
+    )
+
+    # Read bucket output (support both naming conventions)
+    bucket = (
+        tf_output(env, str(BOOT), "backend_s3_bucket_name")
+        or tf_output(env, str(BOOT), "backend_s3_bucket_name")
+    )
+    if not bucket:
+        die("Bootstrap output bucket name not found (expected backend_s3_bucket_name).")
     ok(f"State bucket: {bucket}")
 
-    lock_table = ""
-    try:
-        lock_table = capture(["terraform", "output", "-raw", "tf_state_lock_table_name"], cwd=str(BOOT), env=env)
+    # Lock table optional (support multiple names)
+    lock_table = (
+        tf_output(env, str(BOOT), "tf_state_lock_table_name")
+        or tf_output(env, str(BOOT), "backend_dynamodb_lock_table_name")
+    )
+    if lock_table:
         ok(f"Lock table: {lock_table}")
-    except subprocess.CalledProcessError:
-        info("No DynamoDB lock table found. Continuing without it.")
+    else:
+        info("No DynamoDB lock table output found. Continuing without it.")
 
     backend_hcl = ROOT / "backend.hcl"
     info(f"Writing {backend_hcl}")
@@ -128,14 +153,16 @@ def main():
             f'key            = "{key}"\n'
             f'region         = "{region}"\n'
             f'dynamodb_table = "{lock_table}"\n'
-            f'encrypt        = true\n'
+            f'encrypt        = true\n',
+            encoding="utf-8",
         )
     else:
         backend_hcl.write_text(
             f'bucket  = "{bucket}"\n'
             f'key     = "{key}"\n'
             f'region  = "{region}"\n'
-            f'encrypt = true\n'
+            f'encrypt = true\n',
+            encoding="utf-8",
         )
 
     ok("backend.hcl ready")
@@ -143,9 +170,9 @@ def main():
     # Step 7: Migrate & apply root
     info("Initializing root infrastructure...")
     run(
-        ["terraform", "init", "-reconfigure", "-migrate-state", f"-backend-config={backend_hcl.name}"],
+        ["terraform", "init", "-migrate-state", f"-backend-config={backend_hcl.name}"],
         cwd=str(ROOT),
-        env=env
+        env=env,
     )
 
     tf_vars = [
@@ -157,7 +184,7 @@ def main():
     run(
         ["terraform", "apply", "-auto-approve"] + [f"-var={v}" for v in tf_vars],
         cwd=str(ROOT),
-        env=env
+        env=env,
     )
 
     ok("Infrastructure deployed")
@@ -168,12 +195,14 @@ def main():
     except subprocess.CalledProcessError:
         pass
 
-    api_base_url = capture(["terraform", "output", "-raw", "api_base_url"], cwd=str(ROOT), env=env)
+    api_base_url = tf_output(env, str(ROOT), "api_base_url")
+    if not api_base_url:
+        die("Missing output 'api_base_url' in root. Expose it from your Terraform outputs.")
     ok(f"API Base URL: {api_base_url}")
 
     frontend_env = ROOT / "s3_website" / "code" / ".env.local"
     frontend_env.parent.mkdir(parents=True, exist_ok=True)
-    frontend_env.write_text(f"VITE_API_BASE_URL={api_base_url}\n")
+    frontend_env.write_text(f"VITE_API_BASE_URL={api_base_url}\n", encoding="utf-8")
     ok(f"Created {frontend_env}")
 
     # Step 8: UI deploy
@@ -181,31 +210,38 @@ def main():
         if not need("npm"):
             die("Missing npm/node. Install Node.js: https://nodejs.org/")
 
-        website_bucket = capture(["terraform", "output", "-raw", "website_bucket_name"], cwd=str(ROOT), env=env)
-        website_url = capture(["terraform", "output", "-raw", "website_url"], cwd=str(ROOT), env=env)
+        website_bucket = tf_output(env, str(ROOT), "website_bucket_name")
+        website_url = tf_output(env, str(ROOT), "website_url")
+
+        if not website_bucket:
+            die("Missing output 'website_bucket_name'. Ensure it exists when test_via_ui=true.")
+        if not website_url:
+            info("Missing output 'website_url'. Continuing without it (still uploading).")
 
         ok(f"Website bucket: {website_bucket}")
-        ok(f"Website URL: {website_url}")
+        if website_url:
+            ok(f"Website URL: {website_url}")
 
         frontend_dir = ROOT / "s3_website" / "code"
-        dist_dir = frontend_dir / "dist"
+        dist_dir = frontend_dir / "dist"  # adjust if CRA uses build/
 
         info("Building frontend...")
         run(["npm", "ci"], cwd=str(frontend_dir), env=env)
         run(["npm", "run", "build"], cwd=str(frontend_dir), env=env)
 
         if not dist_dir.exists():
-            die(f"Build output not found: {dist_dir}")
+            die(f"Build output not found: {dist_dir} (if not Vite, adjust dist/build)")
 
         info("Uploading to S3...")
         run(
             ["aws", "s3", "sync", str(dist_dir), f"s3://{website_bucket}/", "--delete"],
             cwd=str(project_root),
-            env=env
+            env=env,
         )
 
         ok("Upload completed")
-        print("\n🌐 URL:", website_url)
+        if website_url:
+            print("\n🌐 URL:", website_url)
 
     ok("All done.")
 

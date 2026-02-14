@@ -5,7 +5,6 @@ variable "region" {
 
 variable "profile" {
   type    = string
-  default = "Ohtis"
 }
 
 variable "environment" {

@@ -3,13 +3,13 @@ output "api_base_url" {
 }
 
 output "website_endpoint" {
-  value = try(module.s3_website.website_endpoint, null)
+  value = try(module.s3_website[0].website_endpoint, null)
 }
 
 output "website_url" {
-  value = try(module.s3_website.website_url, null)
+  value = try(module.s3_website[0].website_url, null)
 }
 
 output "website_bucket_name" {
-  value = try(module.s3_website.website_bucket_name, null)
+  value = try(module.s3_website[0].website_bucket_name, null)
 }

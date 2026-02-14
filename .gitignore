@@ -1,0 +1,6 @@
+.env*
+.terraform*
+terraform.*
+node_modules/
+backend.hcl
+dist/
