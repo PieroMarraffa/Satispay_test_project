@@ -53,7 +53,6 @@ def main():
     if not BOOT.exists():
         die(f"Bootstrap dir not found: {BOOT}")
 
-    # Environment for subprocesses
     env = os.environ.copy()
 
     # Step 1: tool checks
@@ -66,10 +65,9 @@ def main():
     ok(capture(["aws", "--version"]))
     ok(capture(["terraform", "version"]).splitlines()[0])
 
-    # Step 2: AWS profile selection (arrow keys)
+    # Step 2: AWS profile selection
     profiles_raw = capture(["aws", "configure", "list-profiles"])
     profiles = [p for p in profiles_raw.splitlines() if p]
-
     if not profiles:
         die("No AWS profiles found. Run: aws configure --profile <name>")
 
@@ -77,7 +75,6 @@ def main():
         "Select AWS profile:",
         choices=profiles,
     ).ask()
-
     if not aws_profile:
         die("AWS profile selection cancelled.")
 
@@ -89,10 +86,9 @@ def main():
         "Release UI site as well?",
         default=False,
     ).ask()
-
     ok(f"RELEASE_UI={release_ui}")
 
-    # Step 4: Region selection
+    # Step 4: Region
     region = questionary.text(
         "AWS region:",
         default="eu-central-1",
@@ -100,7 +96,7 @@ def main():
     if not region:
         die("Region required.")
 
-    # Step 5: State key selection
+    # Step 5: State key
     key = questionary.text(
         "Terraform state key:",
         default="terraform.tfstate",
@@ -110,11 +106,10 @@ def main():
 
     ok(f"REGION={region}, KEY={key}")
 
-    # Step 6: Bootstrap backend
+    # Step 6: Bootstrap backend (S3 bucket)
     info("Bootstrapping backend...")
     run(["terraform", "init"], cwd=str(BOOT), env=env)
 
-    # Pass vars to avoid interactive prompts if bootstrap expects them
     boot_vars = [
         f"region={region}",
         f"profile={aws_profile}",
@@ -125,55 +120,37 @@ def main():
         env=env,
     )
 
-    # Read bucket output (support both naming conventions)
-    bucket = (
-        tf_output(env, str(BOOT), "backend_s3_bucket_name")
-        or tf_output(env, str(BOOT), "backend_s3_bucket_name")
-    )
+    # read bucket output (support both output names)
+    bucket = tf_output(env, str(BOOT), "backend_s3_bucket_name")
     if not bucket:
-        die("Bootstrap output bucket name not found (expected backend_s3_bucket_name).")
+        bucket = tf_output(env, str(BOOT), "backend_s3_bucket_arn")
+    if not bucket:
+        die("Bootstrap output bucket name not found (expected backend_s3_bucket_name or backend_s3_bucket_arn).")
+
     ok(f"State bucket: {bucket}")
 
-    # Lock table optional (support multiple names)
-    lock_table = (
-        tf_output(env, str(BOOT), "tf_state_lock_table_name")
-        or tf_output(env, str(BOOT), "backend_dynamodb_lock_table_name")
-    )
-    if lock_table:
-        ok(f"Lock table: {lock_table}")
-    else:
-        info("No DynamoDB lock table output found. Continuing without it.")
-
+    # write backend.hcl (NO dynamodb lock)
     backend_hcl = ROOT / "backend.hcl"
     info(f"Writing {backend_hcl}")
-
-    if lock_table:
-        backend_hcl.write_text(
-            f'bucket         = "{bucket}"\n'
-            f'key            = "{key}"\n'
-            f'region         = "{region}"\n'
-            f'dynamodb_table = "{lock_table}"\n'
-            f'encrypt        = true\n',
-            encoding="utf-8",
-        )
-    else:
-        backend_hcl.write_text(
-            f'bucket  = "{bucket}"\n'
-            f'key     = "{key}"\n'
-            f'region  = "{region}"\n'
-            f'encrypt = true\n',
-            encoding="utf-8",
-        )
-
+    backend_hcl.write_text(
+        f'bucket  = "{bucket}"\n'
+        f'key     = "{key}"\n'
+        f'region  = "{region}"\n'
+        f'encrypt = true\n',
+        encoding="utf-8",
+    )
     ok("backend.hcl ready")
 
-    # Step 7: Migrate & apply root
-    info("Initializing root infrastructure...")
-    run(
-        ["terraform", "init", "-migrate-state", f"-backend-config={backend_hcl.name}"],
-        cwd=str(ROOT),
-        env=env,
-    )
+    # Step 7: Init+Migrate root (requires terraform { backend "s3" {} } in ROOT/backend.tf)
+    info("Initializing root infrastructure (S3 backend)...")
+    init_cmd_migrate = ["terraform", "init", "-migrate-state", f"-backend-config={backend_hcl.name}"]
+    init_cmd_reconfig = ["terraform", "init", "-reconfigure", f"-backend-config={backend_hcl.name}"]
+
+    try:
+        run(init_cmd_migrate, cwd=str(ROOT), env=env)
+    except subprocess.CalledProcessError:
+        info("Init migrate failed (likely already migrated). Reconfiguring backend...")
+        run(init_cmd_reconfig, cwd=str(ROOT), env=env)
 
     tf_vars = [
         f"region={region}",
@@ -186,7 +163,6 @@ def main():
         cwd=str(ROOT),
         env=env,
     )
-
     ok("Infrastructure deployed")
 
     print("\nTerraform outputs:")
@@ -215,18 +191,23 @@ def main():
 
         if not website_bucket:
             die("Missing output 'website_bucket_name'. Ensure it exists when test_via_ui=true.")
-        if not website_url:
-            info("Missing output 'website_url'. Continuing without it (still uploading).")
 
         ok(f"Website bucket: {website_bucket}")
         if website_url:
             ok(f"Website URL: {website_url}")
 
         frontend_dir = ROOT / "s3_website" / "code"
-        dist_dir = frontend_dir / "dist"  # adjust if CRA uses build/
+        dist_dir = frontend_dir / "dist"
 
         info("Building frontend...")
-        run(["npm", "ci"], cwd=str(frontend_dir), env=env)
+        # npm ci requires package-lock.json; fallback to npm install if missing
+        pkg_lock = frontend_dir / "package-lock.json"
+        if pkg_lock.exists():
+            run(["npm", "ci"], cwd=str(frontend_dir), env=env)
+        else:
+            info("package-lock.json not found -> using npm install")
+            run(["npm", "install"], cwd=str(frontend_dir), env=env)
+
         run(["npm", "run", "build"], cwd=str(frontend_dir), env=env)
 
         if not dist_dir.exists():
