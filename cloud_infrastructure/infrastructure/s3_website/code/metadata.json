@@ -1,0 +1,5 @@
+{
+  "name": "CloudNotes Pro",
+  "description": "A modern, minimalist message management dashboard connected to AWS-hosted APIs. Create, list, and view detailed messages with a seamless and elegant user interface.",
+  "requestFramePermissions": []
+}

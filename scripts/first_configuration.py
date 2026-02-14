@@ -1,0 +1,214 @@
+#!/usr/bin/env python3
+import os
+import sys
+import shutil
+import subprocess
+from pathlib import Path
+import questionary
+
+
+def run(cmd, cwd=None, env=None):
+    print("▶", " ".join(cmd))
+    subprocess.check_call(cmd, cwd=cwd, env=env)
+
+
+def capture(cmd, cwd=None, env=None) -> str:
+    return subprocess.check_output(cmd, cwd=cwd, env=env, text=True).strip()
+
+
+def need(cmd_name: str):
+    return shutil.which(cmd_name) is not None
+
+
+def die(msg: str):
+    print(f"❌ {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def info(msg: str):
+    print(f"ℹ️  {msg}")
+
+
+def ok(msg: str):
+    print(f"✅ {msg}")
+
+
+def main():
+    script_dir = Path(__file__).resolve().parent
+    project_root = script_dir.parent
+
+    ROOT = project_root / "cloud_infrastructure" / "infrastructure"
+    BOOT = ROOT / "bootstrap"
+
+    if not ROOT.exists():
+        die(f"Terraform root not found: {ROOT}")
+    if not BOOT.exists():
+        die(f"Bootstrap dir not found: {BOOT}")
+
+    # Environment
+    env = os.environ.copy()
+
+    # Step 1: tool checks
+    info("Checking required tools...")
+    if not need("aws"):
+        die("Missing aws CLI. Install: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html")
+    if not need("terraform"):
+        die("Missing terraform. Install: https://developer.hashicorp.com/terraform/install")
+
+    ok(capture(["aws", "--version"]))
+    ok(capture(["terraform", "version"]).splitlines()[0])
+
+    # Step 2: AWS profile selection (arrow keys)
+    profiles_raw = capture(["aws", "configure", "list-profiles"])
+    profiles = [p for p in profiles_raw.splitlines() if p]
+
+    if not profiles:
+        die("No AWS profiles found. Run: aws configure --profile <name>")
+
+    aws_profile = questionary.select(
+        "Select AWS profile:",
+        choices=profiles
+    ).ask()
+
+    if not aws_profile:
+        die("AWS profile selection cancelled.")
+
+    env["AWS_PROFILE"] = aws_profile
+    ok(f"Using AWS_PROFILE={aws_profile}")
+
+    # Step 3: Release UI?
+    release_ui = questionary.confirm(
+        "Release UI site as well?",
+        default=False
+    ).ask()
+
+    ok(f"RELEASE_UI={release_ui}")
+
+    # Step 4: Region selection
+    region = questionary.text(
+        "AWS region:",
+        default="eu-central-1"
+    ).ask()
+
+    if not region:
+        die("Region required.")
+
+    # Step 5: State key selection
+    key = questionary.text(
+        "Terraform state key:",
+        default="terraform.tfstate"
+    ).ask()
+
+    if not key:
+        die("State key required.")
+
+    ok(f"REGION={region}, KEY={key}")
+
+    # Step 6: Bootstrap backend
+    info("Bootstrapping backend...")
+    run(["terraform", "init"], cwd=str(BOOT), env=env)
+    run(["terraform", "apply", "-auto-approve"], cwd=str(BOOT), env=env)
+
+    bucket = capture(["terraform", "output", "-raw", "tf_state_bucket_name"], cwd=str(BOOT), env=env)
+    ok(f"State bucket: {bucket}")
+
+    lock_table = ""
+    try:
+        lock_table = capture(["terraform", "output", "-raw", "tf_state_lock_table_name"], cwd=str(BOOT), env=env)
+        ok(f"Lock table: {lock_table}")
+    except subprocess.CalledProcessError:
+        info("No DynamoDB lock table found. Continuing without it.")
+
+    backend_hcl = ROOT / "backend.hcl"
+    info(f"Writing {backend_hcl}")
+
+    if lock_table:
+        backend_hcl.write_text(
+            f'bucket         = "{bucket}"\n'
+            f'key            = "{key}"\n'
+            f'region         = "{region}"\n'
+            f'dynamodb_table = "{lock_table}"\n'
+            f'encrypt        = true\n'
+        )
+    else:
+        backend_hcl.write_text(
+            f'bucket  = "{bucket}"\n'
+            f'key     = "{key}"\n'
+            f'region  = "{region}"\n'
+            f'encrypt = true\n'
+        )
+
+    ok("backend.hcl ready")
+
+    # Step 7: Migrate & apply root
+    info("Initializing root infrastructure...")
+    run(
+        ["terraform", "init", "-reconfigure", "-migrate-state", f"-backend-config={backend_hcl.name}"],
+        cwd=str(ROOT),
+        env=env
+    )
+
+    tf_vars = [
+        f"region={region}",
+        f"profile={aws_profile}",
+        f"test_via_ui={'true' if release_ui else 'false'}",
+    ]
+
+    run(
+        ["terraform", "apply", "-auto-approve"] + [f"-var={v}" for v in tf_vars],
+        cwd=str(ROOT),
+        env=env
+    )
+
+    ok("Infrastructure deployed")
+
+    print("\nTerraform outputs:")
+    try:
+        print(capture(["terraform", "output"], cwd=str(ROOT), env=env))
+    except subprocess.CalledProcessError:
+        pass
+
+    api_base_url = capture(["terraform", "output", "-raw", "api_base_url"], cwd=str(ROOT), env=env)
+    ok(f"API Base URL: {api_base_url}")
+
+    frontend_env = ROOT / "s3_website" / "code" / ".env.local"
+    frontend_env.parent.mkdir(parents=True, exist_ok=True)
+    frontend_env.write_text(f"VITE_API_BASE_URL={api_base_url}\n")
+    ok(f"Created {frontend_env}")
+
+    # Step 8: UI deploy
+    if release_ui:
+        if not need("npm"):
+            die("Missing npm/node. Install Node.js: https://nodejs.org/")
+
+        website_bucket = capture(["terraform", "output", "-raw", "website_bucket_name"], cwd=str(ROOT), env=env)
+        website_url = capture(["terraform", "output", "-raw", "website_url"], cwd=str(ROOT), env=env)
+
+        ok(f"Website bucket: {website_bucket}")
+        ok(f"Website URL: {website_url}")
+
+        frontend_dir = ROOT / "s3_website" / "code"
+        dist_dir = frontend_dir / "dist"
+
+        info("Building frontend...")
+        run(["npm", "ci"], cwd=str(frontend_dir), env=env)
+        run(["npm", "run", "build"], cwd=str(frontend_dir), env=env)
+
+        if not dist_dir.exists():
+            die(f"Build output not found: {dist_dir}")
+
+        info("Uploading to S3...")
+        run(
+            ["aws", "s3", "sync", str(dist_dir), f"s3://{website_bucket}/", "--delete"],
+            cwd=str(project_root),
+            env=env
+        )
+
+        ok("Upload completed")
+        print("\n🌐 URL:", website_url)
+
+    ok("All done.")
+
+
+if __name__ == "__main__":
+    main()
