@@ -10,7 +10,7 @@ REM Project root = parent directory of script dir
 for %%I in ("%SCRIPT_DIR%\..") do set PROJECT_ROOT=%%~fI
 
 set REQ_FILE=%SCRIPT_DIR%\requirements.txt
-set PY_SCRIPT=%SCRIPT_DIR%\first_configuration.py
+set PY_SCRIPT=%SCRIPT_DIR%\destroy_infrastructure_win.py
 set VENV_DIR=%PROJECT_ROOT%\.venv
 
 REM ----------------------------------------

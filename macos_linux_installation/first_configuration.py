@@ -41,6 +41,22 @@ def tf_output(env, cwd: str, name: str) -> str | None:
         return None
 
 
+def write_backend_hcl_with_meta(path: Path, bucket: str, key: str, region: str, test_via_ui: bool) -> None:
+    """
+    Write Terraform backend config (valid HCL) plus metadata as comment.
+    Terraform ignores comments; a destroy script can read meta.test_via_ui from the first line.
+    """
+    meta_line = f"# meta.test_via_ui={'true' if test_via_ui else 'false'}\n"
+    content = (
+        meta_line
+        + f'bucket  = "{bucket}"\n'
+        f'key     = "{key}"\n'
+        f'region  = "{region}"\n'
+        f'encrypt = true\n'
+    )
+    path.write_text(content, encoding="utf-8")
+
+
 def main():
     script_dir = Path(__file__).resolve().parent
     project_root = script_dir.parent
@@ -129,15 +145,15 @@ def main():
 
     ok(f"State bucket: {bucket}")
 
-    # write backend.hcl (NO dynamodb lock)
+    # write backend.hcl (NO dynamodb lock) + meta.test_via_ui for destroy script
     backend_hcl = ROOT / "backend.hcl"
-    info(f"Writing {backend_hcl}")
-    backend_hcl.write_text(
-        f'bucket  = "{bucket}"\n'
-        f'key     = "{key}"\n'
-        f'region  = "{region}"\n'
-        f'encrypt = true\n',
-        encoding="utf-8",
+    info(f"Writing {backend_hcl} (with meta.test_via_ui)")
+    write_backend_hcl_with_meta(
+        path=backend_hcl,
+        bucket=bucket,
+        key=key,
+        region=region,
+        test_via_ui=bool(release_ui),
     )
     ok("backend.hcl ready")
 
