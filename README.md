@@ -118,7 +118,7 @@ Usa l’**API Base URL** restituito in output dopo il setup (o da `terraform out
   curl "$API_BASE_URL/messages/<message_id>"
   ```
 
-È possibile raccogliere questi comandi in uno script (es. `scripts/test_cli.sh`) passando `API_BASE_URL` come variabile d’ambiente per un test rapido ripetibile.
+Per reperire il valore di `API_BASE_URL` controlla gli output dello script di configurazione oppure il file [`.env.local`](cloud_infrastructure/infrastructure/s3_website/code/.env.local) disponibile solo dopo la configurazione iniziale del progetto.
 
 ### UI Test (Optional)
 
@@ -171,17 +171,25 @@ terraform init -reconfigure -backend-config=backend.hcl
 
 ## 7. Future Improvements (Vision)
 
+### High Availability
+
+- **CloudFront CDN** — mettere davanti al sito di test hostato su S3 una distribuzione **Amazon CloudFront** migliora la disponibilità e la raggiungibilità globale: le richieste vengono servite dai PoP (Point of Presence) più vicini all’utente, si riducono latenza e carico sulla origin S3, e si ottiene un unico endpoint HTTPS stabile. In caso di indisponibilità temporanea della origin, la cache CDN può continuare a servire le risorse statiche già in cache, aumentando la resilienza percepita del sito di test.
+
 ### Scalability
 
 - **DynamoDB Accelerator (DAX)** — per letture massive e bassa latenza su `GET /messages` e `GET /messages/{id}`; cache in-memory davanti a DynamoDB senza modificare il codice delle Lambda.
 - **Caching su API Gateway** — abilitare la cache sulle route GET per ridurre le letture a DynamoDB.
 - **DynamoDB** — valutare capacità provisionate (RCU/WCU) se il carico diventa prevedibile; mantenere on-demand per carichi variabili.
 
+### Disaster Recovery
+
+- **Repliche DynamoDB** — abilitare **DynamoDB Global Tables** per replicare la tabella messaggi in una o più regioni secondarie: in caso di guasto o indisponibilità della region primaria è possibile indirizzare il traffico sulla replica (failover) e ridurre RTO/RPO.
+- **Politiche di backup** — per la tabella DynamoDB: attivare **Point-in-Time Recovery (PITR)** per ripristini continui; definire **backup on-demand** periodici (es. giornalieri o pre-release) tramite AWS Backup. Per lo state Terraform (S3) è già attivo il versioning; valutare lifecycle policy e cross-region replication del bucket state per scenari di disaster recovery dell’infrastruttura.
+
 ### Security
 
 - **AWS WAF** — associare un Web Application Firewall all’API Gateway per proteggere da attacchi comuni (SQL injection, XSS, rate limiting avanzato, geo-blocking).
 - **Autenticazione** — integrare Cognito o Lambda authorizer (JWT/OAuth) per proteggere le route in produzione.
-- **Secrets** — eventuali segreti in AWS Secrets Manager o Parameter Store; nessun segreto hardcoded.
 
 ### CI/CD
 
@@ -189,8 +197,5 @@ terraform init -reconfigure -backend-config=backend.hcl
   - On push su `main`: `terraform plan` (o apply in ambiente staging).
   - Build del frontend e upload su S3 in pipeline.
   - Approvazione manuale per apply in produzione.
-- **Destroy** — mantenere gli script Python/Bash per teardown manuale o in job schedulato per ambienti effimeri.
 
 ---
-
-*Progetto realizzato per il colloquio tecnico con Satispay. Focus su semplicità, sicurezza (Least Privilege, KMS) ed efficienza operativa (one-command setup, osservabilità).*

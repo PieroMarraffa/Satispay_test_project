@@ -7,7 +7,7 @@ if (!API_BASE_URL) {
 }
 
 export const apiService = {
-  // GET /messages — backend returns { items: MessageSummary[], next_token?: string }
+  // GET /messages — backend returns { items: [...], next_token?: string }; each item has message_id, title, message
   getMessages: async (): Promise<MessageSummary[]> => {
     const response = await fetch(`${API_BASE_URL}/messages`);
     if (!response.ok) {
@@ -17,12 +17,12 @@ export const apiService = {
     const rawItems: unknown[] = Array.isArray(data) ? data : (data?.items ?? []);
     if (!Array.isArray(rawItems)) return [];
     return rawItems.map((it: Record<string, unknown>) => ({
-      id: String(it.id ?? it.message_id ?? ''),
-      title: String(it.title ?? it.author ?? it.text ?? it.id ?? it.message_id ?? ''),
+      id: String(it.message_id ?? it.id ?? ''),
+      title: String(it.title ?? ''),
     })) as MessageSummary[];
   },
 
-  // GET /messages/{id} — backend returns raw DynamoDB item (message_id, text, author, …); we normalize to MessageDetail
+  // GET /messages/{id} — backend returns DynamoDB item: message_id, title, message
   getMessageById: async (id: string): Promise<MessageDetail> => {
     const response = await fetch(`${API_BASE_URL}/messages/${id}`);
     if (!response.ok) {
@@ -30,17 +30,17 @@ export const apiService = {
     }
     const it = (await response.json()) as Record<string, unknown>;
     return {
-      id: String(it.id ?? it.message_id ?? ''),
-      title: String(it.title ?? it.author ?? it.text ?? it.id ?? it.message_id ?? ''),
-      message: String(it.message ?? it.text ?? ''),
+      id: String(it.message_id ?? it.id ?? ''),
+      title: String(it.title ?? ''),
+      message: String(it.message ?? ''),
     } as MessageDetail;
   },
 
-  // POST /messages — backend expects { text: string, author?: string }, we send title as author and message as text
+  // POST /messages — backend expects { title: string, message: string }
   createMessage: async (payload: CreateMessagePayload): Promise<{ id: string }> => {
     const body = {
-      text: payload.message,
-      ...(payload.title?.trim() && { author: payload.title.trim() }),
+      title: payload.title?.trim() ?? '',
+      message: payload.message?.trim() ?? '',
     };
     const response = await fetch(`${API_BASE_URL}/messages`, {
       method: 'POST',
