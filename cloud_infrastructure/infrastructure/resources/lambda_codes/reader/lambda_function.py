@@ -8,7 +8,7 @@ dynamodb = boto3.resource("dynamodb")
 
 def _response(status_code: int, body: dict | list | str):
     if not isinstance(body, (dict, list)):
-        body = {"message": str(body)}
+        body = {"text": str(body)}
     return {
         "statusCode": status_code,
         "headers": {

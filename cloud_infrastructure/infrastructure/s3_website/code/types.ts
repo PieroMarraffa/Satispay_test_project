@@ -5,12 +5,12 @@ export interface MessageSummary {
 }
 
 export interface MessageDetail extends MessageSummary {
-  message: string;
+  text: string;
 }
 
 export interface CreateMessagePayload {
   title: string;
-  message: string;
+  text: string;
 }
 
 export type ViewState = 'list' | 'create' | 'detail';

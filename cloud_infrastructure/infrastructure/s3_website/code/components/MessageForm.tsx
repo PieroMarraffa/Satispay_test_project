@@ -9,15 +9,15 @@ interface MessageFormProps {
 
 const MessageForm: React.FC<MessageFormProps> = ({ onSuccess, onCancel }) => {
   const [title, setTitle] = useState('');
-  const [message, setMessage] = useState('');
+  const [text, setText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !message) return;
+    if (!title || !text) return;
 
     setIsSubmitting(true);
-    await apiService.createMessage({ title, message });
+    await apiService.createMessage({ title, text });
     setIsSubmitting(false);
     onSuccess();
   };
@@ -47,13 +47,13 @@ const MessageForm: React.FC<MessageFormProps> = ({ onSuccess, onCancel }) => {
           </div>
 
           <div>
-            <label htmlFor="message" className="block text-sm font-semibold text-slate-700 mb-2">
+            <label htmlFor="text" className="block text-sm font-semibold text-slate-700 mb-2">
               Message Body
             </label>
             <textarea
-              id="message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              id="text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
               placeholder="Write your content here..."
               rows={6}
               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none resize-none"

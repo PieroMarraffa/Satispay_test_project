@@ -7,7 +7,7 @@ if (!API_BASE_URL) {
 }
 
 export const apiService = {
-  // GET /messages — backend returns { items: [...], next_token?: string }; each item has message_id, title, message
+  // GET /messages — backend returns { items: [...], next_token?: string }; each item has message_id, title, text
   getMessages: async (): Promise<MessageSummary[]> => {
     const response = await fetch(`${API_BASE_URL}/messages`);
     if (!response.ok) {
@@ -22,7 +22,7 @@ export const apiService = {
     })) as MessageSummary[];
   },
 
-  // GET /messages/{id} — backend returns DynamoDB item: message_id, title, message
+  // GET /messages/{id} — backend returns DynamoDB item: message_id, title, text
   getMessageById: async (id: string): Promise<MessageDetail> => {
     const response = await fetch(`${API_BASE_URL}/messages/${id}`);
     if (!response.ok) {
@@ -32,15 +32,15 @@ export const apiService = {
     return {
       id: String(it.message_id ?? it.id ?? ''),
       title: String(it.title ?? ''),
-      message: String(it.message ?? ''),
+      text: String(it.text ?? it.message ?? ''),
     } as MessageDetail;
   },
 
-  // POST /messages — backend expects { title: string, message: string }
+  // POST /messages — backend expects { title: string, text: string }
   createMessage: async (payload: CreateMessagePayload): Promise<{ id: string }> => {
     const body = {
       title: payload.title?.trim() ?? '',
-      message: payload.message?.trim() ?? '',
+      text: payload.text?.trim() ?? '',
     };
     const response = await fetch(`${API_BASE_URL}/messages`, {
       method: 'POST',

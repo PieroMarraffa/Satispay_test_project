@@ -4,3 +4,5 @@ terraform.*
 node_modules/
 backend.hcl
 dist/
+.env.local
+function.zip

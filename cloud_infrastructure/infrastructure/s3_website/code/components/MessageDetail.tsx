@@ -61,7 +61,7 @@ const MessageDetail: React.FC<MessageDetailProps> = ({ id, onBack }) => {
 
           <article className="prose prose-slate max-w-none">
             <p className="text-lg leading-relaxed text-slate-700 whitespace-pre-wrap">
-              {message.message}
+              {message.text}
             </p>
           </article>
 

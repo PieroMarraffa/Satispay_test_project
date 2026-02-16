@@ -11,7 +11,7 @@ dynamodb = boto3.resource("dynamodb")
 
 def _response(status_code: int, body: dict | list | str):
     if not isinstance(body, (dict, list)):
-        body = {"message": str(body)}
+        body = {"text": str(body)}
     return {
         "statusCode": status_code,
         "headers": {
@@ -43,7 +43,7 @@ def lambda_handler(event, context):
     """
     POST /messages
     Expects JSON body like:
-      { "message": "hello", "title": "piero" (optional) }
+      { "text": "hello", "title": "piero" (optional) }
     """
     print("=== WRITER start ===")
     print("[ctx] function:", getattr(context, "function_name", None))
@@ -91,10 +91,10 @@ def lambda_handler(event, context):
             print("[warn] InvalidJSON:", repr(e))
             return _response(400, {"error": "InvalidJSON"})
 
-        message = payload.get("message")
-        print("[validate] message type:", type(message).__name__)
-        if not isinstance(message, str) or not message.strip():
-            return _response(400, {"error": "ValidationError", "field": "message"})
+        text = payload.get("text")
+        print("[validate] text type:", type(text).__name__)
+        if not isinstance(text, str) or not text.strip():
+            return _response(400, {"error": "ValidationError", "field": "text"})
 
         title = payload.get("title")
         print("[validate] title type:", type(title).__name__ if title is not None else None)
@@ -103,7 +103,7 @@ def lambda_handler(event, context):
 
         item = {
             "message_id": str(uuid.uuid4()),
-            "message": message.strip(),
+            "text": text.strip(),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         if title and isinstance(title, str) and title.strip():
@@ -122,7 +122,7 @@ def lambda_handler(event, context):
             code = e.response.get("Error", {}).get("Code", "")
             print("[error] DDB error code:", code)
             if code == "ConditionalCheckFailedException":
-                return _response(409, {"error": "Conflict", "message": "ID already exists"})
+                return _response(409, {"error": "Conflict", "text": "ID already exists"})
             return _response(500, {"error": "DDBPutItemFailed", "detail": str(e)})
 
         return _response(201, item)
