@@ -43,7 +43,7 @@ def lambda_handler(event, context):
     """
     POST /messages
     Expects JSON body like:
-      { "text": "hello", "author": "piero" (optional) }
+      { "message": "hello", "title": "piero" (optional) }
     """
     print("=== WRITER start ===")
     print("[ctx] function:", getattr(context, "function_name", None))
@@ -91,23 +91,23 @@ def lambda_handler(event, context):
             print("[warn] InvalidJSON:", repr(e))
             return _response(400, {"error": "InvalidJSON"})
 
-        text = payload.get("text")
-        print("[validate] text type:", type(text).__name__)
-        if not isinstance(text, str) or not text.strip():
-            return _response(400, {"error": "ValidationError", "field": "text"})
+        message = payload.get("message")
+        print("[validate] message type:", type(message).__name__)
+        if not isinstance(message, str) or not message.strip():
+            return _response(400, {"error": "ValidationError", "field": "message"})
 
-        author = payload.get("author")
-        print("[validate] author type:", type(author).__name__ if author is not None else None)
-        if author is not None and not isinstance(author, str):
-            return _response(400, {"error": "ValidationError", "field": "author"})
+        title = payload.get("title")
+        print("[validate] title type:", type(title).__name__ if title is not None else None)
+        if title is not None and not isinstance(title, str):
+            return _response(400, {"error": "ValidationError", "field": "title"})
 
         item = {
             "message_id": str(uuid.uuid4()),
-            "text": text.strip(),
+            "message": message.strip(),
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
-        if author and isinstance(author, str) and author.strip():
-            item["author"] = author.strip()
+        if title and isinstance(title, str) and title.strip():
+            item["title"] = title.strip()
 
         print("[ddb] put_item item:", _safe_json(item))
 
