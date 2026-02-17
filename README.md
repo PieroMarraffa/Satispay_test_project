@@ -1,201 +1,350 @@
-# Satispay_test_project
+# Candidate Project for Satispay
+*Author: Piero Marraffa*
 
 ## 1. Project Overview
+**The Objective:** - Create a Terraform configuration that provisions a simple AWS architecture to persist and retrieve JSON data.
 
-**Goal** — POC per un servizio serverless di ingestione e recupero dati JSON: API REST che consente di creare messaggi (POST) e leggerli in lista o per singolo ID (GET), con persistenza su database gestito AWS.
+**Requirements:** 
+1. **Infrastructure** (Terraform):
+    - **Compute**: Provision an AWS Lambda function.
+    - **Storage**: Provision an AWS DynamoDB table.
+    - **Security**: Create the necessary IAM Roles and Policies. Follow the Principle of Least Privilege (e.g., the Lambda should only have permission to write/read from this specific DynamoDB table, not *).
+    - **Logging**: Ensure the Lambda function outputs logs to AWS CloudWatch Logs.
+2. **Application Logic** (Python/Node.js/Go - your choice):
+    - **Ingestion**: The Lambda must accept a JSON payload (e.g., {"id": "123", "message": "hello"}) and persist it to the DynamoDB table.
+    - **Retrieval**: Implement a way to retrieve the persisted data using its ID
+    - **Architectural Decision**: You must decide whether to create a second Lambda for the retrieval step or reuse the existing one. Please document your reasoning in a README.
 
-**Core Stack** — AWS, Terraform (IaC), Python (Lambda + script di automazione). Frontend opzionale in React/TypeScript (Vite).
+**Guidelines:** 
+- **Keep it simple**: You do not need to build a full CI/CD pipeline or a complex API Gateway (unless you want to). Invoking the function via AWS Console or AWS CLI for testing is acceptable.
+- **State Management**: Local state (terraform.tfstate) is acceptable for this exercise.
+- **Clean Code**: Avoid hardcoding values (e.g., table names, region) in your code; use Terraform variables and outputs.
 
-**Key Features**
-- Due Lambda (Read / Write) con ruoli IAM distinti e permessi minimi.
-- DynamoDB come store principale; crittografia a riposo con KMS.
-- API Gateway HTTP API come unico ingresso.
-- UI di test opzionale hostata su S3 per verificare il flusso end-to-end.
+**Bonus Points:** 
+- Use a **Makefile** or **shell script** to wrap the build/deploy commands.
+- Include a basic **architectural diagram** in your README with any observations you might have.
+- Feel free to **add any resource you think** would be useful.
 
----
+___
 
-## 2. Architectural Decisions (Mandatory)
+## 2. Architectural Decisions
 
-### Why Two Lambdas?
+### Why two lambdas?
 
-Le funzioni sono state separate per applicare il **Principio del Minimo Privilegio (Least Privilege)**:
-- **Writer Lambda**: possiede **solo** `dynamodb:PutItem` sulla tabella messaggi (e permessi di log su CloudWatch). Non può leggere né scansionare.
-- **Reader Lambda**: possiede **solo** `dynamodb:GetItem`, `dynamodb:Query`, `dynamodb:Scan` (e log). Non può scrivere.
-
-In questo modo un eventuale compromesso di una funzione limita il danno al solo ambito read o write.
+In the assignement I was ask to decide between one single lambda to manage API calls or devide the management between two of them. So I've gone for two for respecting the assignement of **least privilege**. Infact by doing this I could have **use two separate IAM roles** and assign to each lambda just the "allows" it need
 
 ### API Gateway
 
-È stata scelta un’**interfaccia HTTP** (API Gateway HTTP API) per **semplicità ed efficienza**: integrazione diretta con Lambda (proxy), basso costo, configurazione CORS e throttling integrata. Ideale per un POC e facilmente estendibile con authorizer in produzione.
+For reaching the lambdas, I've opted for **AWS API Gateway HTTP v2 version**. In fact, besides the fact that I've already used it in my previous projects, it was the **simplest and most efficient** way to implement the API requestes. I've used proxy integration, CORS config and lambda implementation to configure the entire service.
 
-### KMS Integration
+### KMS integration
 
-I dati in DynamoDB sono **cifrati a riposo** con una chiave KMS dedicata (rotazione abilitata). La policy KMS limita l’uso della chiave al solo servizio DynamoDB nell’account/region. Questa scelta eleva lo standard di sicurezza oltre i requisiti base e garantisce confidenzialità dei dati.
+Speaking of security, I immediately thought of DynamoDB's **data-at-rest encryption**. I'd never used this service before, but I was familiar with its implementation, having studied it during my AWS certification preparation.
 
----
+### Terraform state
 
-## 3. Architecture Diagram
+Even if not mandatory, I've written the code for releasing an S3 for storing tf state of the project. I use it by default in the configuration scripts, but the infrastructure still works if manually released without the backend S3.
 
-È possibile inserire qui l’immagine dell’architettura preparata (`cloud_architecture.jpg`), posizionandola nella root del repo o in una cartella `docs/`.
+### UI and Automations
 
-![Architettura cloud](./cloud_architecture.jpg)
+Even if not requested, I've implemented a react web app and multiple automation files just to make configuration, testing and destroying the infrastructure easier and more agile for interviewer. Wanted to focus on infrastructure design, implementation and testing, I've used AI tools to help me implement this features. Of course the infrastructure is still configurable and testable in manual ways that I'll explain in the relative chapter of this documentation.
 
-**Legenda del flusso dati**
-1. **Client (CLI o browser UI)** invia richieste HTTP all’endpoint pubblico di API Gateway.
-2. **API Gateway** instrada in base a metodo e path: `GET /messages` e `GET /messages/{id}` → Lambda Reader; `POST /messages` → Lambda Writer.
-3. **Lambda** eseguono la logica (validazione, serializzazione) e accedono a **DynamoDB** con le credenziali del proprio ruolo IAM.
-4. **DynamoDB** persiste i messaggi; i dati sono cifrati con **KMS**.
-5. *(Opzionale)* Il **sito statico** su S3 viene servito al browser; le chiamate API passano da browser → API Gateway (CORS abilitato per l’origine S3).
+___
 
----
+## 3. Architecture Diagram and Flow
 
-## 4. Getting Started (Quick Start)
+By using draw.io online tool I've realised the following architectur design schema. 
+
+![Cloud Design](cloud_architecture.jpg)
+
+### Infrastructure Flow
+1. **Client** send a CURL request to the API Gateway (if using UI for testing I've linked the Website endpoint to API GTW CORS configuration) 
+2. Depending on the request, **API GTW** invoke the right lambda by using its lambda integration and permission
+3. **Lambdas** access the DynamoDB tables with **IAM Role** restricted to the least possible privilege 
+4. **DynamoDB** persist data and encrypt them at rest with **KMS Key**
+5. Lambda functions and API Gateway log to **AWS CloudWatch Logs** in their dedicate Log Groups. (IAM Roles provide them the possibility to perform these actions)
+
+___
+
+## 4. Getting Started
 
 ### Prerequisites
 
-- **AWS CLI** — [Installazione](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) e profilo configurato (`aws configure --profile <nome>`).
-- **Terraform** — [Installazione](https://developer.hashicorp.com/terraform/install); deve essere in PATH.
-- **Python 3** — per gli script di setup/destroy; [python.org](https://www.python.org/downloads/).
-- **Node.js / npm** — solo se si intende rilasciare l’UI di test: [nodejs.org](https://nodejs.org/).
+- **AWS CLI** - [Installed](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) and configured (`aws configure --profile <profile_name>`) 
+- **Terraform** - [Installed](https://developer.hashicorp.com/terraform/install) and inserted in path (follow this [doc](https://terraform-tutorial.schoolofdevops.com/00-environment-setup/))
+- **Python 3** — just for setup/destroy scripts; [python.org](https://www.python.org/downloads/).
+- **Node.js / npm** — just for UI relise: [nodejs.org](https://nodejs.org/).
 
-### One-Command Setup
+### Automatic Setup
 
-Lo script **`first_configuration.sh`** (macOS/Linux) o **`first_configuration.cmd`** (Windows) gestisce l’intero setup in un unico comando:
+This field is thought for making tester life easier. I've realized all the script necessaries to deploy the infrastructure and destroy it after completing the tests.
 
-- Scelta del **profilo AWS** (da `aws configure list-profiles`).
-- Domanda se **rilasciare anche l’UI** (build + upload su S3).
-- **Bootstrap** del backend Terraform (bucket S3 per lo state).
-- **Scrittura** di `backend.hcl` con bucket, key, region e metadato per il destroy.
-- **Init e apply** dell’infrastructure root (Lambda, API Gateway, DynamoDB, KMS, eventuale S3 website).
-- **Build e deploy** del frontend (se richiesto) e upload su S3.
+**CRITICAL** - make it sure to respect all the prerequisites written above, otherwise the scripts will fail saying `Dependency not installed`
 
-**macOS / Linux**
-```bash
-./macos_linux_installation/first_configuration.sh
+#### Mac users
+
+Enter the repository of the project by using `cd` command 
+
+1. Find the project directory in your "finder" 
+2. Copy the whole path of the directory
+3. Launch terminal app with cmd+space and type "terminal" (sudo role not necessary)
+4. type:
+    ```
+    cd <directory path>
+    ```
+
+Make the scripts executable:
+```
+chmod +x macos_linux_scripts/first_configuration.sh
+chmod +x macos_linux_scripts/destroy_infrastructure.sh
 ```
 
-**Windows**
-```cmd
-windows_installation\first_configuration.cmd
+Than run the configuration script:
+```
+./macos_linux_scripts/first_configuration.sh
 ```
 
-Lo script crea un virtualenv in `.venv`, installa le dipendenze Python (`questionary`) e lancia lo script Python corrispondente (`first_configuration.py` o `first_configuration_win.py`).
+To setup the whole project follow the following steps:
 
-### Environment Variables
+`? Select AWS profile: (Use arrow keys)` 
 
-Al termine del apply, lo script **genera automaticamente** il file `cloud_infrastructure/infrastructure/s3_website/code/.env.local` con:
+Navigate with up/down arrow keys to the aws profile you want to use for deploying the infrastructure
 
-```env
-VITE_API_BASE_URL=<api_base_url>
+`? Release UI site as well? (y/N)`
+
+Type `y` to release the ui website
+
+`? AWS region: eu-central-1`
+`? Terraform state key: terraform.tfstate`
+
+Press `Enter` on both to go on the configuration
+
+Once finished on the installation you'll get 
+`🌐 URL:`
+in console. 
+Follow the url to reach the testing website.
+
+#### Windows users
+
+Enter the repository of the project by using `cd` command 
+
+1. Find the project directory in your "file explorer" 
+2. Copy the whole path of the directory
+3. Launch powershell app (admin role not necessary)
+4. type:
+    ```
+    cd <directory path>
+    ```
+
+Than run the configuration script:
+```
+.\windows_scripts\first_configuration.cmd
 ```
 
-`<api_base_url>` è l’output Terraform dell’endpoint dell’API (es. `https://xxxx.execute-api.eu-central-1.amazonaws.com/test`). Questo file viene usato dal frontend per le chiamate API; se si fa solo deploy da script, non serve configurarlo a mano.
+To setup the whole project follow the following steps:
 
----
+`? Select AWS profile: (Use arrow keys)` 
 
-## 5. How to Test
+Navigate with up/down arrow keys to the aws profile you want to use for deploying the infrastructure
+
+`? Release UI site as well? (y/N)`
+
+Type `y` to release the ui website
+
+`? AWS region: eu-central-1`
+`? Terraform state key: terraform.tfstate`
+
+Press `Enter` on both to go on the configuration
+
+Once finished on the installation you'll get 
+`🌐 URL:`
+in console. 
+Follow the url to reach the testing website.
+
+
+
+### Manual Setup
+**DISCLAIMER** - setup the project manually only if you're proficient in `Terraform` and `command line tools`, it may be a bit difficult.
+
+For setupping manually the infrastructure follow these steps:
+
+1. Enter the repository of the project by using `cd` command 
+
+    1. Find the project directory in your "file explorer" 
+    2. Copy the whole path of the directory
+    3. Launch powershell app (admin role not necessary)
+    4. type:
+        ```
+        cd <directory path>
+        ```
+2. update the following command with your desired aws profile and testing mode. I would advise to release the ui website (*test_via_ui=true*), but it's on your discreption, it won't change the test outcome.
+For **mac users**:
+    ```
+    terraform -chdir=./cloud_infrastructure/infrastructure init \
+    -var="profile=<your AWS Profile>" \
+    -var="test_via_ui=<true/false>"
+    ```
+    For **windows users**:
+    ```
+    terraform -chdir=.\cloud_infrastructure\infrastructure init \
+    -var="profile=<your AWS Profile>" \
+    -var="test_via_ui=<true/false>"
+    ```
+3. Now let's apply the infrastructure:
+For **mac users**:
+    ```
+    terraform -chdir=./cloud_infrastructure/infrastructure apply -auto-approve \
+    -var="profile=<your AWS Profile>" \
+    -var="test_via_ui=<true/false>"
+    ```
+    For **windows users**:
+    ```
+    terraform -chdir=.\cloud_infrastructure\infrastructure apply -auto-approve \
+    -var="profile=<your AWS Profile>" \
+    -var="test_via_ui=<true/false>"
+    ```
+4. In any moment you'll be able to run the command again and deploy or destroy the website. Remember to init the terraform (step 2) every time you'll modify *test_via_ui*
+5. If *test_via_ui=true* web app build is needed. Follow this steps:
+    a. Enter the website code subdirectory:
+    ```
+    cd cloud_infrastructure/infrastructure/s3_website/code
+    ``` 
+    b. Build the web app:
+    ```
+    npm i
+    npm run build
+    ``` 
+    c. Upload the build files to the hosting s3 or manually or by the command:
+    ```
+    aws s3 sync dist/ s3://marraffa-satispay-site/ --delete --profile <AWS profile>
+    ``` 
+
+___
+
+## 5. How to Test the Infrastructure
+### UI Test
+
+If released, you'll be able to reach the website by following the URL in:
+`cloud_infrastructure/infrastructure/ui_website_url`
+
+Here you'll find three different pages:
+1. main page with all the created messages
+2. by selecting one message you'll get to the detail page
+3. by clicking to `+ New Message` you'll be able to create a new message
 
 ### CLI Test
+At the end of the installation you'll find a new file at:
+`cloud_infrastructure/infrastructure/s3_website/code/.env.local`
 
-Usa l’**API Base URL** restituito in output dopo il setup (o da `terraform output -raw api_base_url` nella cartella `cloud_infrastructure/infrastructure`).
+You'll be able to test them in terminal with the following commands
+1. copy the whole text in `cloud_infrastructure/infrastructure/s3_website/code/.env.local`. It'll be something like `VITE_API_BASE_URL=...
+`
+2. send in terminal app the following command (works only on mac and linux. If on windows skip this step):
+    ```
+    export VITE_API_BASE_URL=...
+    ```
+    paste here the text you copied before
+3. for creating a new message in mac/linux:
+    ```
+    curl -X POST "$VITE_API_BASE_URL/messages" -H "Content-Type: application/json" -d '{"text":"Hello world","title":"First meassage"}'
+    ```
+    in windows:
+    ```
+    Invoke-RestMethod -Uri "$VITE_API_BASE_URL/messages" `
+    -Method Post `
+    -Headers @{"Content-Type" = "application/json"} `
+    -Body '{"text":"Hello world","title":"First meassage"}'
+    ```
+4. for listing all messages in mac/linux:
+    ```
+    curl "$VITE_API_BASE_URL/messages"
+    ```
+    in windows:
+    ```
+    Invoke-RestMethod -Uri "$VITE_API_BASE_URL/test/messages"
+    ```
+5. for reading a message by it's id in mac/linux:
+    ```
+    curl "$VITE_API_BASE_URL/messages/<id>"
+    ```
+    in windows:
+    ```
+    Invoke-RestMethod -Uri "$VITE_API_BASE_URL/test/messages/<id>"
+    ```
+    you'll find the id from the list api response
 
-- **Creare un messaggio (MANDARE)**
-  ```bash
-  curl -X POST "$API_BASE_URL/messages" \
-    -H "Content-Type: application/json" \
-    -d '{"message":"Hello world","title":"First meassage"}'
-  ```
-  Risposta attesa: `201` con body JSON contenente `message_id`, `message`, `created_at`, `title`.
-
-- **Leggere tutti i messaggi (LEGGERE)**
-  ```bash
-  curl "$API_BASE_URL/messages"
-  curl "$API_BASE_URL/messages?limit=10"
-  ```
-
-- **Leggere un messaggio per ID**
-  ```bash
-  curl "$API_BASE_URL/messages/<message_id>"
-  ```
-
-Per reperire il valore di `API_BASE_URL` controlla gli output dello script di configurazione oppure il file [`.env.local`](cloud_infrastructure/infrastructure/s3_website/code/.env.local) disponibile solo dopo la configurazione iniziale del progetto.
-
-### UI Test (Optional)
-
-Se durante il setup è stata scelta l’opzione **“Release UI site”**:
-
-1. Alla fine dello script viene stampato l’**URL del sito** (output `website_url`).
-2. Aprire tale URL nel browser per accedere all’interfaccia: lista messaggi, dettaglio, form di creazione.
-3. L’UI usa `VITE_API_BASE_URL` (generato nello step di setup) per tutte le chiamate; CORS è configurato sull’API Gateway per l’origine del sito S3.
-
----
+___
 
 ## 6. Technical Implementation Details
 
 ### Project Structure
 
-Organizzazione **modulare** Terraform:
+The project consist of 3 main directory
+1. **cloud_infrastructure** - here is located the whole infrasstructure cohomprensive of terraform code, lambda code and react code. Everything here is going to the cloud;
+2. **macos_linux_scripts** - here are located the scripts executable on Unix machines for configuring the infrastructure and destroying it;
+3. **windows_scripts** - here are located the scripts executable on Windows machines for configuring the infrastructure and destroying it;
 
-- **`cloud_infrastructure/infrastructure/`** — root dello stack: `main.tf` orchestra i moduli; `backend.tf` dichiara il backend S3; variabili in `variables.tf`.
-- **`cloud_infrastructure/infrastructure/bootstrap/`** — crea il bucket S3 per lo state Terraform.
-- **`cloud_infrastructure/infrastructure/resources/`** — modulo “cloud_resources”: Lambda, DynamoDB, KMS, IAM, API Gateway; definizioni route e integrazioni.
-- **`cloud_infrastructure/modules/`** — moduli riutilizzabili:
-  - `lambda` — packaging e deploy Lambda (runtime Python, env vars, log group). Vista la semplicità del codice lambda ho preferito usare la funzione built-in di terraform per la build delle lambda piuttosto che un Makefile (scelta più sicura in caso di funzioni con dipendenze esterne)
-  - `iam` — ruolo + policy da lista di statement (Least Privilege).
-  - `api_gtw_lambda_integration` — route API Gateway con integrazioni verso Lambda (HTTP API v2).
-- **`cloud_infrastructure/tags/test/`** — tag comuni per l’ambiente test.
-- **`macos_linux_installation/`** e **`windows_installation/`** — script di automazione e `requirements.txt`.
+Speaking about **Terraform**, it's used in 3 different projects parts:
+1. bootstrap infrastructure: here are created the resources for bootstrapping the project like the S3 that host the project terraform state;
+2.  resources: here are created the resources linked to the solution designed, from the API Gateway to the IAM roles;
+3. s3_website/terraform: here are created the resources to host the website like the S3 with website configuration;
+
+Modules, tags and locals are terraform blocks largely used in the project to implement the recursive deploy of different resources with the same configuration.
 
 ### State Management
+From the project instructions, management of the terraform state was very elastic:
 
-Lo **state Terraform** è remoto in **S3** (bucket creato dal bootstrap). Il file `backend.hcl` (generato dallo script di setup) contiene `bucket`, `key`, `region`, `encrypt`; non viene committato per evitare dati sensibili. Nel file troverete anche `# meta.test_via_ui=true`, variabile che serve agli script di automazione per capire se è stato rilasciato anche il sito, ma che resta nascosta al terraform in fase di configurazione del backend. Init della root si fa con:
+*`Local state (terraform.tfstate) is acceptable for this exercise`*
 
-```bash
-terraform init -reconfigure -backend-config=backend.hcl
-```
+Based on my past experiences where I got used to manage it with S3 buckets, I've provided an automated way to do it (bootstrap configuration) and a manual way to keep it local. The algorithm is based on the `backend.hcl` file: it's automatically created by bootstrap configuration so, when deploying the infrastructure, if it's been created, terraform will configure the backend on the S3, otherwise it'll proceed with local state.
+
+In this file I've hidden the variable `meta.test_via_ui=true`. Infact this variable is needed by the automation scripts and I wanted to keep track of it, without creating a dedicated file. 
 
 ### Security & IAM
 
-- **Lambda Reader**: policy con solo `dynamodb:GetItem`, `dynamodb:Query`, `dynamodb:Scan` sulla tabella (e indici); `logs:CreateLogStream`, `logs:PutLogEvents` limitati al proprio log group.
-- **Lambda Writer**: policy con solo `dynamodb:PutItem` sulla tabella; stessi permessi log sul proprio log group.
-- **KMS**: policy che consente l’uso della chiave solo a DynamoDB nello stesso account/region (`kms:ViaService`, `kms:CallerAccount`).
-- **S3 (state bucket)**: blocco accessi pubblici, versioning e cifratura; nessuna policy pubblica.
-- **S3 (website)**: policy che concede solo `s3:GetObject` sugli oggetti del bucket; CORS sull’API limitato all’origine del sito.
+Following the principle of **least privilege**, I focused on designing the right permission to each resource.
+
+- **Lambda Reader**: Policy with only `dynamodb:GetItem`, `dynamodb:Query`, `dynamodb:Scan` on the table (and indexes); `logs:CreateLogStream`, `logs:PutLogEvents` limited to its own log group.
+- **Lambda Writer**: Policy with only `dynamodb:PutItem` on the table; same log permissions on its own log group.
+- **KMS**: Policy that allows the key to be used only by DynamoDB in the same account/region (`kms:ViaService`, `kms:CallerAccount`).
+- **S3 (state bucket)**: Block public access, versioning, and encryption; no public policy.
+- **S3 (website)**: Policy that allows only `s3:GetObject` on bucket objects; CORS on the API limited to the site origin.
 
 ### Observability
 
-- **CloudWatch Logs**: ogni Lambda ha un log group dedicato (`/aws/lambda/<nome>`); API Gateway scrive in un log group (`/aws/apigateway/...`). Retention 14 giorni.
-- **API Gateway**: throttling configurato (burst/rate); access log con `requestId`, `requestTime`, `routeKey`, `status`, `integrationError`, `errorMessage`. Le metriche standard di API Gateway sono attive nella console AWS.
+I designed the infrastructure to keep track of:
+- **Lambda functions**: lambda code is full of `print` blocks for debugging and following lambda execution step by step;
+- **API Gateay**: configured throttling (burst/rate); access log with `requestId`, `requestTime`, `routeKey`, `status`, `integrationError`, `errorMessage`.
 
----
+___
 
 ## 7. Future Improvements (Vision)
 
 ### High Availability
 
-- **CloudFront CDN** — mettere davanti al sito di test hostato su S3 una distribuzione **Amazon CloudFront** migliora la disponibilità e la raggiungibilità globale: le richieste vengono servite dai PoP (Point of Presence) più vicini all’utente, si riducono latenza e carico sulla origin S3, e si ottiene un unico endpoint HTTPS stabile. In caso di indisponibilità temporanea della origin, la cache CDN può continuare a servire le risorse statiche già in cache, aumentando la resilienza percepita del sito di test.
+- **CloudFront CDN** — Placing an **Amazon CloudFront** distribution in front of the S3-hosted test site improves availability and global reach: requests are served from the PoPs (Points of Presence) closest to the user, reducing latency and load on the S3 origin, and providing a single, stable HTTPS endpoint. In the event of a temporary origin unavailability, the CDN cache can continue to serve the static resources already cached, increasing the perceived resilience of the test site.
 
 ### Scalability
 
-- **DynamoDB Accelerator (DAX)** — per letture massive e bassa latenza su `GET /messages` e `GET /messages/{id}`; cache in-memory davanti a DynamoDB senza modificare il codice delle Lambda.
-- **Caching su API Gateway** — abilitare la cache sulle route GET per ridurre le letture a DynamoDB.
-- **DynamoDB** — valutare capacità provisionate (RCU/WCU) se il carico diventa prevedibile; mantenere on-demand per carichi variabili.
+- **DynamoDB Accelerator (DAX)** — for massive, low-latency reads on `GET /messages` and `GET /messages/{id}`; in-memory cache in front of DynamoDB without modifying the Lambda code.
+- **Caching on API Gateway** — Enabling caching on GET routes to reduce reads to DynamoDB.
+- **DynamoDB** — Evaluate provisioned capacity (RCU/WCU) if load becomes predictable; maintain on-demand for variable loads.
 
 ### Disaster Recovery
 
-- **Repliche DynamoDB** — abilitare **DynamoDB Global Tables** per replicare la tabella messaggi in una o più regioni secondarie: in caso di guasto o indisponibilità della region primaria è possibile indirizzare il traffico sulla replica (failover) e ridurre RTO/RPO.
-- **Politiche di backup** — per la tabella DynamoDB: attivare **Point-in-Time Recovery (PITR)** per ripristini continui; definire **backup on-demand** periodici (es. giornalieri o pre-release) tramite AWS Backup. Per lo state Terraform (S3) è già attivo il versioning; valutare lifecycle policy e cross-region replication del bucket state per scenari di disaster recovery dell’infrastruttura.
+- **DynamoDB Replicas** — Enable **DynamoDB Global Tables** to replicate the message table to one or more secondary regions. In the event of a failure or unavailability of the primary region, traffic can be directed to the replica (failover) and reduced RTO/RPO.
+- **Backup Policies** — For the DynamoDB table: enable **Point-in-Time Recovery (PITR)** for continuous restores; define periodic **on-demand backups** (e.g., daily or pre-release) via AWS Backup. Versioning is already enabled for the Terraform (S3) state; evaluate lifecycle policies and cross-region replication of the bucket state for infrastructure disaster recovery scenarios.
 
 ### Security
 
-- **AWS WAF** — associare un Web Application Firewall all’API Gateway per proteggere da attacchi comuni (SQL injection, XSS, rate limiting avanzato, geo-blocking).
-- **Autenticazione** — integrare Cognito o Lambda authorizer (JWT/OAuth) per proteggere le route in produzione.
+- **AWS WAF** — Associate a Web Application Firewall with the API Gateway to protect against common attacks (SQL injection, XSS, advanced rate limiting, geo-blocking).
+- **Authentication** — Integrate Cognito or Lambda authorizer (JWT/OAuth) to secure routes in production.
 
 ### CI/CD
 
-- **Automazione del deploy** tramite **GitHub Actions** o **AWS CodePipeline**:
-  - On push su `main`: `terraform plan` (o apply in ambiente staging).
-  - Build del frontend e upload su S3 in pipeline.
-  - Approvazione manuale per apply in produzione.
+- **Deployment automation** via **GitHub Actions** or **AWS CodePipeline**:
+- On push to `main`: `terraform plan` (or apply in staging environment).
+- Frontend build and upload to S3 in pipeline.
+- Manual approval for apply in production.
 
----
+___
