@@ -258,7 +258,7 @@ You'll be able to test them in terminal with the following commands
     ```
     in windows:
     ```
-    Invoke-RestMethod -Uri "$VITE_API_BASE_URL/test/messages"
+    Invoke-RestMethod -Uri "$VITE_API_BASE_URL/messages"
     ```
 5. for reading a message by its id in mac/linux:
     ```
@@ -266,7 +266,7 @@ You'll be able to test them in terminal with the following commands
     ```
     in windows:
     ```
-    Invoke-RestMethod -Uri "$VITE_API_BASE_URL/test/messages/<id>"
+    Invoke-RestMethod -Uri "$VITE_API_BASE_URL/messages/<id>"
     ```
     you'll find the id from the list api response
 
