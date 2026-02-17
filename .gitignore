@@ -6,3 +6,4 @@ backend.hcl
 dist/
 .env.local
 function.zip
+cloud_infrastructure/infrastructure/ui_website_url.txt

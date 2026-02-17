@@ -94,12 +94,12 @@ def lambda_handler(event, context):
         text = payload.get("text")
         print("[validate] text type:", type(text).__name__)
         if not isinstance(text, str) or not text.strip():
-            return _response(400, {"error": "ValidationError", "field": "text"})
+            return _response(400, {"error": "ValidationError", "missing field": "text"})
 
         title = payload.get("title")
         print("[validate] title type:", type(title).__name__ if title is not None else None)
-        if title is not None and not isinstance(title, str):
-            return _response(400, {"error": "ValidationError", "field": "title"})
+        if not isinstance(title, str) or not title.strip():
+            return _response(400, {"error": "ValidationError", "missing field": "title"})
 
         item = {
             "message_id": str(uuid.uuid4()),

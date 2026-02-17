@@ -1,5 +1,6 @@
 # Candidate Project for Satispay
 *Author: Piero Marraffa*
+*codebase available in https://github.com/PieroMarraffa/Satispay_test_project*
 
 ## 1. Project Overview
 **The Objective:** - Create a Terraform configuration that provisions a simple AWS architecture to persist and retrieve JSON data.
