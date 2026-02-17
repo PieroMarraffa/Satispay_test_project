@@ -31,11 +31,11 @@ ___
 
 ### Why two lambdas?
 
-In the assignement I was ask to decide between one single lambda to manage API calls or devide the management between two of them. So I've gone for two for respecting the assignement of **least privilege**. Infact by doing this I could have **use two separate IAM roles** and assign to each lambda just the "allows" it need
+In the assignment I was asked to decide between one single lambda to manage API calls or divide the management between two of them. So I've gone for two for respecting the assignment of **least privilege**. Infact by doing this I could have **use two separate IAM roles** and assign to each lambda just the "allows" it needs.
 
 ### API Gateway
 
-For reaching the lambdas, I've opted for **AWS API Gateway HTTP v2 version**. In fact, besides the fact that I've already used it in my previous projects, it was the **simplest and most efficient** way to implement the API requestes. I've used proxy integration, CORS config and lambda implementation to configure the entire service.
+For reaching the lambdas, I've opted for **AWS API Gateway HTTP v2 version**. In fact, besides the fact that I've already used it in my previous projects, it was the **simplest and most efficient** way to implement the API requests. I've used proxy integration, CORS config and lambda implementation to configure the entire service.
 
 ### KMS integration
 
@@ -47,13 +47,13 @@ Even if not mandatory, I've written the code for releasing an S3 for storing tf 
 
 ### UI and Automations
 
-Even if not requested, I've implemented a react web app and multiple automation files just to make configuration, testing and destroying the infrastructure easier and more agile for interviewer. Wanted to focus on infrastructure design, implementation and testing, I've used AI tools to help me implement this features. Of course the infrastructure is still configurable and testable in manual ways that I'll explain in the relative chapter of this documentation.
+Even if not requested, I've implemented a react web app and multiple automation files just to make configuration, testing and destroying the infrastructure easier and more agile for interviewer. Since I wanted to focus on infrastructure design, implementation and testing, I've used AI tools to help me implement this features. Of course the infrastructure is still configurable and testable in manual ways that I'll explain in the relative chapter of this documentation.
 
 ___
 
 ## 3. Architecture Diagram and Flow
 
-By using draw.io online tool I've realised the following architectur design schema. 
+By using draw.io online tool I've realised the following architecture design schema. It's based on resources available in AWS Free Tier Account. 
 
 ![Cloud Design](cloud_architecture.jpg)
 
@@ -62,7 +62,7 @@ By using draw.io online tool I've realised the following architectur design sche
 2. Depending on the request, **API GTW** invoke the right lambda by using its lambda integration and permission
 3. **Lambdas** access the DynamoDB tables with **IAM Role** restricted to the least possible privilege 
 4. **DynamoDB** persist data and encrypt them at rest with **KMS Key**
-5. Lambda functions and API Gateway log to **AWS CloudWatch Logs** in their dedicate Log Groups. (IAM Roles provide them the possibility to perform these actions)
+5. Lambda functions and API Gateway log to **AWS CloudWatch Logs** in their dedicated Log Groups. (IAM Roles provide them the possibility to perform these actions)
 
 ___
 
@@ -73,11 +73,11 @@ ___
 - **AWS CLI** - [Installed](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) and configured (`aws configure --profile <profile_name>`) 
 - **Terraform** - [Installed](https://developer.hashicorp.com/terraform/install) and inserted in path (follow this [doc](https://terraform-tutorial.schoolofdevops.com/00-environment-setup/))
 - **Python 3** — just for setup/destroy scripts; [python.org](https://www.python.org/downloads/).
-- **Node.js / npm** — just for UI relise: [nodejs.org](https://nodejs.org/).
+- **Node.js / npm** — just for UI release: [nodejs.org](https://nodejs.org/).
 
 ### Automatic Setup
 
-This field is thought for making tester life easier. I've realized all the script necessaries to deploy the infrastructure and destroy it after completing the tests.
+This field is thought for making tester life easier. I've realized all the necessary scripts to deploy the infrastructure and destroy it after completing the tests.
 
 **CRITICAL** - make it sure to respect all the prerequisites written above, otherwise the scripts will fail saying `Dependency not installed`
 
@@ -96,15 +96,14 @@ Enter the repository of the project by using `cd` command
 Make the scripts executable:
 ```
 chmod +x macos_linux_scripts/first_configuration.sh
-chmod +x macos_linux_scripts/destroy_infrastructure.sh
 ```
 
-Than run the configuration script:
+then run the configuration script:
 ```
 ./macos_linux_scripts/first_configuration.sh
 ```
 
-To setup the whole project follow the following steps:
+To setup the whole project follow these steps:
 
 `? Select AWS profile: (Use arrow keys)` 
 
@@ -136,12 +135,12 @@ Enter the repository of the project by using `cd` command
     cd <directory path>
     ```
 
-Than run the configuration script:
+then run the configuration script:
 ```
 .\windows_scripts\first_configuration.cmd
 ```
 
-To setup the whole project follow the following steps:
+To setup the whole project follow these steps:
 
 `? Select AWS profile: (Use arrow keys)` 
 
@@ -164,9 +163,9 @@ Follow the url to reach the testing website.
 
 
 ### Manual Setup
-**DISCLAIMER** - setup the project manually only if you're proficient in `Terraform` and `command line tools`, it may be a bit difficult.
+**DISCLAIMER** - Manual setup is advised for users who prefer direct control over Terraform commands.
 
-For setupping manually the infrastructure follow these steps:
+For setting up manually the infrastructure follow these steps:
 
 1. Enter the repository of the project by using `cd` command 
 
@@ -177,31 +176,23 @@ For setupping manually the infrastructure follow these steps:
         ```
         cd <directory path>
         ```
-2. update the following command with your desired aws profile and testing mode. I would advise to release the ui website (*test_via_ui=true*), but it's on your discreption, it won't change the test outcome.
+2. update the following commands with your desired aws profile and testing mode. I would advise to release the ui website (*test_via_ui=true*), but it's on your discretion, it won't change the test outcome.
 For **mac users**:
     ```
-    terraform -chdir=./cloud_infrastructure/infrastructure init \
-    -var="profile=<your AWS Profile>" \
-    -var="test_via_ui=<true/false>"
+    terraform -chdir=./cloud_infrastructure/infrastructure init -var="profile=<your AWS Profile>" -var="test_via_ui=<true/false>"
     ```
     For **windows users**:
     ```
-    terraform -chdir=.\cloud_infrastructure\infrastructure init \
-    -var="profile=<your AWS Profile>" \
-    -var="test_via_ui=<true/false>"
+    terraform -chdir=.\cloud_infrastructure\infrastructure init -var="profile=<your AWS Profile>" -var="test_via_ui=<true/false>"
     ```
 3. Now let's apply the infrastructure:
 For **mac users**:
     ```
-    terraform -chdir=./cloud_infrastructure/infrastructure apply -auto-approve \
-    -var="profile=<your AWS Profile>" \
-    -var="test_via_ui=<true/false>"
+    terraform -chdir=./cloud_infrastructure/infrastructure apply -auto-approve -var="profile=<your AWS Profile>" -var="test_via_ui=<true/false>"
     ```
     For **windows users**:
     ```
-    terraform -chdir=.\cloud_infrastructure\infrastructure apply -auto-approve \
-    -var="profile=<your AWS Profile>" \
-    -var="test_via_ui=<true/false>"
+    terraform -chdir=.\cloud_infrastructure\infrastructure apply -auto-approve -var="profile=<your AWS Profile>" -var="test_via_ui=<true/false>"
     ```
 4. In any moment you'll be able to run the command again and deploy or destroy the website. Remember to init the terraform (step 2) every time you'll modify *test_via_ui*
 5. If *test_via_ui=true* web app build is needed. Follow this steps:
@@ -239,21 +230,26 @@ At the end of the installation you'll find a new file at:
 You'll be able to test them in terminal with the following commands
 1. copy the whole text in `cloud_infrastructure/infrastructure/s3_website/code/.env.local`. It'll be something like `VITE_API_BASE_URL=...
 `
-2. send in terminal app the following command (works only on mac and linux. If on windows skip this step):
+2. send in terminal app the following command (works only on mac and linux. If on windows skip this step and change in every other commands VITE_API_BASE_URL with your actual api url):
     ```
     export VITE_API_BASE_URL=...
     ```
     paste here the text you copied before
-3. for creating a new message in mac/linux:
+3. for creating a new message use the following commands.
+    In the given Application Logic the proposed json had the fields "id" and "message". In mine I left the id managed by lambda so I called it "title". Plus I considered the entire entity as a message so the second field turned into "text".
+
+    <br>
+    
+    In macos/linux:
     ```
-    curl -X POST "$VITE_API_BASE_URL/messages" -H "Content-Type: application/json" -d '{"text":"Hello world","title":"First meassage"}'
+    curl -X POST "$VITE_API_BASE_URL/messages" -H "Content-Type: application/json" -d '{"title":"First meassage","text":"Hello world"}'
     ```
-    in windows:
+    In windows:
     ```
     Invoke-RestMethod -Uri "$VITE_API_BASE_URL/messages" `
     -Method Post `
     -Headers @{"Content-Type" = "application/json"} `
-    -Body '{"text":"Hello world","title":"First meassage"}'
+    -Body '{"title":"First meassage","text":"Hello world"}'
     ```
 4. for listing all messages in mac/linux:
     ```
@@ -263,7 +259,7 @@ You'll be able to test them in terminal with the following commands
     ```
     Invoke-RestMethod -Uri "$VITE_API_BASE_URL/test/messages"
     ```
-5. for reading a message by it's id in mac/linux:
+5. for reading a message by its id in mac/linux:
     ```
     curl "$VITE_API_BASE_URL/messages/<id>"
     ```
@@ -279,8 +275,8 @@ ___
 
 ### Project Structure
 
-The project consist of 3 main directory
-1. **cloud_infrastructure** - here is located the whole infrasstructure cohomprensive of terraform code, lambda code and react code. Everything here is going to the cloud;
+The project consists of 3 main directory
+1. **cloud_infrastructure** - here is located the whole infrastructure comprehensive of terraform code, lambda code and react code. Everything here is going to the cloud;
 2. **macos_linux_scripts** - here are located the scripts executable on Unix machines for configuring the infrastructure and destroying it;
 3. **windows_scripts** - here are located the scripts executable on Windows machines for configuring the infrastructure and destroying it;
 
@@ -316,6 +312,12 @@ I designed the infrastructure to keep track of:
 - **Lambda functions**: lambda code is full of `print` blocks for debugging and following lambda execution step by step;
 - **API Gateay**: configured throttling (burst/rate); access log with `requestId`, `requestTime`, `routeKey`, `status`, `integrationError`, `errorMessage`.
 
+### Automations
+Makefiles are considered a bonus, but since I'm not proficient in this kind of automation, I found it easier, faster, and more appropriate to build these Lambdas using Terraform’s built-in packaging functionality. For simple Lambdas with no external dependencies, Terraform’s native “build function” capability is perfectly suited to the task.
+
+<br>
+
+As part of the automation effort, I chose to implement setup and cleanup scripts to make it easier for testers to approach and work with the infrastructure.
 ___
 
 ## 7. Future Improvements (Vision)
@@ -348,3 +350,108 @@ ___
 - Manual approval for apply in production.
 
 ___
+
+## 8. Project CleanUp
+
+**Recommendation**: follow the steps relative to your followed setup mode.
+
+### Automatic CleanUp
+
+This field is thought for making tester life easier. I've realized all the necessary scripts to deploy the infrastructure and destroy it after completing the tests.
+
+**CRITICAL** - make it sure to respect all the prerequisites written above, otherwise the scripts will fail saying `Dependency not installed`
+
+#### Mac users
+
+Enter the repository of the project by using `cd` command 
+
+1. Find the project directory in your "finder" 
+2. Copy the whole path of the directory
+3. Launch terminal app with cmd+space and type "terminal" (sudo role not necessary)
+4. type:
+    ```
+    cd <directory path>
+    ```
+
+Make the scripts executable:
+```
+chmod +x macos_linux_scripts/destroy_infrastructure.sh
+```
+
+then run the destroying script:
+```
+./macos_linux_scripts/destroy_infrastructure.sh
+```
+
+To cleanup the whole project follow these steps:
+
+`? Select AWS profile: (Use arrow keys)` 
+
+Navigate with up/down arrow keys to the aws profile you want to use for deploying the infrastructure
+
+`? AWS region: eu-central-1` ✅
+
+`? This will DESTROY the entire infrastructure and delete S3 content. Continue? (y/N)` 
+
+Type `y` to release the ui website
+
+Once finished on the destroying you'll be able to delete the directory. 
+
+#### Windows users
+
+Enter the repository of the project by using `cd` command 
+
+1. Find the project directory in your "file explorer" 
+2. Copy the whole path of the directory
+3. Launch powershell app (admin role not necessary)
+4. type:
+    ```
+    cd <directory path>
+    ```
+
+then run the destroying script:
+```
+.\windows_scripts\destroy_infrastructure_win.cmd
+```
+
+To cleanup the whole project follow these steps:
+
+`? Select AWS profile: (Use arrow keys)` 
+
+Navigate with up/down arrow keys to the aws profile you want to use for deploying the infrastructure
+
+`? AWS region: eu-central-1` ✅
+
+`? This will DESTROY the entire infrastructure and delete S3 content. Continue? (y/N)` 
+
+Type `y` to release the ui website
+
+Once finished on the destroying you'll be able to delete the directory. 
+
+### Manual Cleanup
+
+For destroying manually the infrastructure follow these steps:
+
+1. If *test_via_ui=true* S3 Website needs to be empty. run this command:
+    ```
+    aws s3 rm s3://marraffa-satispay-site/ --recursive --profile <AWS profile>
+    ``` 
+
+2. Enter the repository of the project by using `cd` command 
+
+    1. Find the project directory in your "finder" or "file explorer" 
+    2. Copy the whole path of the directory
+    3. Launch terminal app or Powershell (sudo/admin role not necessary)
+    4. type:
+        ```
+        cd <directory path>
+        ```
+3. Update the following commands with your used aws profile and testing mode.
+For **mac users**:
+    ```
+    terraform -chdir=./cloud_infrastructure/infrastructure destroy -auto-approve -var="profile=<your AWS Profile>" -var="test_via_ui=<true/false>"
+    ```
+    For **windows users**:
+    ```
+    terraform -chdir=.\cloud_infrastructure\infrastructure destroy -auto-approve -var="profile=<your AWS Profile>" -var="test_via_ui=<true/false>"
+    ```
